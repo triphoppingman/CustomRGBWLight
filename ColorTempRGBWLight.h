@@ -1,5 +1,6 @@
 #include "esphome.h"
 
+// Mode of the light
 enum mode {RGB, White};
 
 // Constants

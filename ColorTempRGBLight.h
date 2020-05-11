@@ -1,4 +1,7 @@
-include "esphome.h"
+#include "esphome.h"
+
+// Mode of the light
+enum mode {RGB, White};
 
 // Constants
 const float maxMired = 500;
@@ -24,7 +27,7 @@ public:
     // Create initial state
     colorTemp_ = -1.0f;
     brightness_ = -1.0f;
-    rgbChanged_ = false;
+    mode_ = White;
     
     // default scaling
     cr = 1;
@@ -57,7 +60,7 @@ public:
     // Create initial state
     colorTemp_ = -1.0f;
     brightness_ = -1.0f;
-    rgbChanged_ = false;
+    mode_ = White;
     
     // Configured scaling
     cr = _cr;
@@ -88,12 +91,23 @@ public:
    * Write the state to this light
    */
   void write_state(LightState *state) override {
+    // Get the current statue
     float colorTemp, brightness;
     state->current_values_as_brightness(&brightness);
     colorTemp = state->current_values.get_color_temperature();
+    float red, green, blue;
+    state->current_values_as_rgb(&red, &green, &blue);
+
+    // Switch modes if rgb values have been sent or if color temp value has been sent
+    if (colorTemp != colorTemp_) {
+      mode_ = White;
+    }
+    else if (red != oldRed || green != oldGreen || blue != oldBlue) {
+      mode_ = RGB;
+    }
   
     // If the color temp changed or the color temp is unchanged but the brightness is changed then process that.
-    if(colorTemp != colorTemp_ || (!rgbChanged_ && brightness != brightness_)) {
+    if(mode_ == White) {
 		// Normalize the colorTemp
 		float xaxis = (colorTemp - minMired) / (maxMired - minMired);  // Varies from 0 to 1 as it moves from MIN to MAX
 
@@ -106,29 +120,27 @@ public:
 		this->green_->set_level(green);
 		this->blue_->set_level(blue);
 
-        colorTemp_ = colorTemp;
-        rgbChanged_ = false;
+    colorTemp_ = colorTemp;
 	} else {
-        float red, green, blue;
-        state->current_values_as_rgb(&red, &green, &blue);
+    float red, green, blue;
+    state->current_values_as_rgb(&red, &green, &blue);
 
-        if (
-          red != state->current_values.get_red() ||
-          green != state->current_values.get_green() ||
-          blue != state->current_values.get_blue() ||
-          brightness != state->current_values.get_brightness())
-        {
-          this->red_->set_level(red);
-          this->green_->set_level(green);
-          this->blue_->set_level(blue);
-
-          // remember a color change
-          rgbChanged_ = true;
-        }
-        
+    if (
+      red != state->current_values.get_red() ||
+      green != state->current_values.get_green() ||
+      blue != state->current_values.get_blue() ||
+      brightness != state->current_values.get_brightness())
+    {
+      this->red_->set_level(red);
+      this->green_->set_level(green);
+      this->blue_->set_level(blue);
+    }
 	}
 	brightness_ = brightness; 
-  }
+  this->oldRed = red;
+  this->oldGreen = green;
+  this->oldBlue = blue;
+}
 
 
 protected:
@@ -136,10 +148,14 @@ protected:
   FloatOutput  *green_;
   FloatOutput  *blue_;
   
+  // Keep track of previous changes
+  float oldRed;
+  float oldGreen;
+  float oldBlue;
   float colorTemp_;
   float brightness_;
-  bool rgbChanged_;
 
+  mode mode_;
   
   // red intercept and scale
   float br;
